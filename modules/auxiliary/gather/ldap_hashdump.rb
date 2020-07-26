@@ -175,11 +175,20 @@ class MetasploitModule < Msf::Auxiliary
 
       print_good("Credentials found: #{dn}:#{hash}")
 
+      case @pass_attr.downcase
+      when 'sambalmpassword'
+        hash_format = 'lm'
+      when 'sambalmpassword'
+        hash_format = 'nt'
+      else
+        hash_format = identify_hash(hash)
+      end
+
       create_credential(service_details.merge(
         username: dn,
         private_data: hash,
         private_type: :nonreplayable_hash,
-        jtr_format: identify_hash(hash)
+        jtr_format: hash_format
       ))
     end
   end

