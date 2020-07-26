@@ -89,7 +89,7 @@ class MetasploitModule < Msf::Auxiliary
     end
 
     # We are ok with any entry returned
-    unless entries.any?
+    unless entries && entries.any?
       print_error("#{peer} LDAP server did not return any entries")
       return Exploit::CheckCode::Safe
     end
@@ -105,7 +105,7 @@ class MetasploitModule < Msf::Auxiliary
 
   def pillage(entries)
     # TODO: Make this more efficient?
-    ldif = entries.map(&:to_ldif).join("\n")
+    ldif = entries.map(&:to_ldif).map{|s| s.force_encoding('utf-8')}.join("\n")
 
     print_status('Storing LDAP data in loot')
 
@@ -171,6 +171,7 @@ class MetasploitModule < Msf::Auxiliary
           (hash.downcase.start_with?("{crypt}") && hash.length < 10)
         next
       end
+      hash.gsub!('{crypt}$1$', '$1$')
 
       print_good("Credentials found: #{dn}:#{hash}")
 
