@@ -17,7 +17,8 @@ class MetasploitModule < Msf::Auxiliary
         'Name' => 'LDAP Information Disclosure',
         'Description' => %q{
           This module uses an anonymous-bind LDAP connection to dump data from
-          the an LDAP server.
+          an LDAP server. Searching for attributes with user credentials
+          (e.g. userPassword).
         },
         'Author' => [
           'Hynek Petrak', # Discovery, hash dumping
