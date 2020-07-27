@@ -35,7 +35,8 @@ wish to change it UID, name or similar.
 ### PASS_ATTR
 
 LDAP attribute to take the password hash from. Defaults to userPassword,
-some LDAP server may use different attribute, e.g. unixUserPassword.
+some LDAP server may use different attribute, e.g. unixUserPassword,
+sambantpassword, sambalmpassword.
 
 ## Scenarios
 
