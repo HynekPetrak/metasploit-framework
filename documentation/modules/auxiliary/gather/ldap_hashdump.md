@@ -19,7 +19,7 @@ Follow [Setup](#setup) and [Scenarios](#scenarios).
 
 ### Dump
 
-Dump all LDAP data from the vCenter Server.
+Dump all LDAP data from the LDAP server.
 
 ## Options
 
