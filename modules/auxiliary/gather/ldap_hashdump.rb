@@ -147,7 +147,7 @@ class MetasploitModule < Msf::Auxiliary
       address: rhost,
       port: rport,
       protocol: 'tcp',
-      service_name: 'avaya/ldap'
+      service_name: 'ldap'
     }
 
     unless @user_attr
@@ -194,4 +194,3 @@ class MetasploitModule < Msf::Auxiliary
   end
 
 end
-
