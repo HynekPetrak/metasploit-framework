@@ -3,7 +3,7 @@
 ### Description
 
 This module uses an LDAP connection to dump data from LDAP server
-using an annonymous or authenticated bind.
+using an anonymous or authenticated bind.
 Searching for specific attributes it collects user credentials.
 
 ### Setup
