@@ -88,7 +88,7 @@ class MetasploitModule < Msf::Auxiliary
 
       naming_contexts.each do |item|
         print_status("#{peer} Dumping data for base DN='#{item}'")
-        entries = ldap.search(base: item)
+        entries = ldap.search(base: item, attributes: %w[* + -])
         # We are ok with any entry returned
         if entries && entries.any?
           base_dn_vuln = item
