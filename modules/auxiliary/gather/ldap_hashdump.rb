@@ -178,13 +178,20 @@ class MetasploitModule < Msf::Auxiliary
 
       hash = entry[pass_attr_name].first
 
-      # Skip empty hashes '{CRYPT}x'
+      # Skip empty or invalid hashes, e.g. '{CRYPT}x', xxxx, ****
       if hash.nil? || hash.empty? ||
-         (hash.downcase.start_with?('{crypt}') && hash.length < 10)
+         (hash.start_with?(/{crypt}/i) && hash.length < 10) ||
+         hash.start_with?('*****') ||
+         hash.start_with?(/xxxxx/i)
         next
       end
 
-      hash.gsub!('{crypt}$1$', '$1$')
+      # Remove ldap {crypt} prefix from known hash types
+      hash.gsub!(/{crypt}\$1\$/i, '$1$')
+      hash.gsub!(/{crypt}\$6\$/i, '$6$')
+
+      # TODO: handle {crypt}taditional_crypt case, i.e. expliitly set the hash format
+      # TODO: handle vcenter vmdir binary hash format
 
       print_good("Credentials found: #{dn}:#{hash}")
 
