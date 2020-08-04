@@ -75,9 +75,9 @@ class MetasploitModule < Msf::Auxiliary
         print_error("#{peer} LDAP error #{ldap.get_operation_result.code}: #{ldap.get_operation_result.message}")
       end
 
-      if (base_dn = datastore['BASE_DN'])
-        print_status("User-specified base DN: #{base_dn}")
-        naming_contexts = [base_dn]
+      if (base_dn_tmp = datastore['BASE_DN'])
+        print_status("User-specified base DN: #{base_dn_tmp}")
+        naming_contexts = [base_dn_tmp]
       else
         print_status('Discovering base DN(s) automatically')
 
@@ -98,6 +98,8 @@ class MetasploitModule < Msf::Auxiliary
       naming_contexts.each do |base_dn|
         print_status("#{peer} Dumping data for base DN='#{base_dn}'")
         Tempfile.create do |f|
+          f.write("# LDIF dump of #{peer}, base DN='#{base_dn}'\n")
+          f.write("\n")
           ldap.search(base: base_dn, attributes: %w[* + -]) do |entry|
             base_dn_vuln = base_dn
             f.write("# #{entry.dn}\n")
@@ -159,7 +161,6 @@ class MetasploitModule < Msf::Auxiliary
       protocol: 'tcp',
       service_name: 'ldap'
     }
-
 
     # This is the "username"
     dn = entry[@user_attr].first # .dn
