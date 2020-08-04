@@ -87,7 +87,7 @@ class MetasploitModule < Msf::Auxiliary
           naming_contexts = ['']
         end
       end
-      
+
       @user_attr ||= datastore['USER_ATTR']
       @user_attr ||= 'dn'
       print_status("Taking '#{@user_attr}' attribute as username")
@@ -189,7 +189,7 @@ class MetasploitModule < Msf::Auxiliary
     else
       hash_format = identify_hash(hash)
     end
-    
+
     print_good("Credentials (#{hash_format}) found: #{dn}:#{hash}")
 
     create_credential(service_details.merge(
