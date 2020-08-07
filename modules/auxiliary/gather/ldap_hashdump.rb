@@ -25,6 +25,8 @@ class MetasploitModule < Msf::Auxiliary
           'wvu' # Module
         ],
         'References' => [
+          ['CVE', '2020-3952'],
+          ['URL', 'https://www.vmware.com/security/advisories/VMSA-2020-0006.html']
         ],
         'DisclosureDate' => '2020-07-23',
         'License' => MSF_LICENSE,
