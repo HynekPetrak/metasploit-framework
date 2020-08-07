@@ -190,6 +190,16 @@ module Metasploit
             '111'
           when 'raw-sha512'
             '1700'
+          when 'raw-sha1'
+            '100'
+          when 'raw-md5'
+            '0'
+          when 'smd5'
+            '6300'
+          when 'ssha256'
+            '1411'
+          when 'ssha512'
+            '1711'
           else
             nil
           end

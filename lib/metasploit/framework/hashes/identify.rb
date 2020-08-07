@@ -17,7 +17,7 @@ def identify_hash(hash)
   case
     # operating systems
     when hash.start_with?('$1$') && hash.length == 34
-      return 'md5'
+      return 'md5crypt'
     when hash.start_with?('$2$') && hash.length == 59,
          hash.start_with?('$2a$') && hash.length == 60,
          hash.start_with?('$2b$') && hash.length == 60,
@@ -46,6 +46,16 @@ def identify_hash(hash)
       return 'ssha'
     when hash.start_with?('{SHA512}')
       return 'raw-sha512'
+    when hash.start_with?('{SHA}')
+      return 'raw-sha1'
+    when hash.start_with?('{MD5}')
+      return 'raw-md5'
+    when hash.start_with?('{SMD5}')
+      return 'smd5'
+    when hash.start_with?('{SSHA256}')
+      return 'ssha256'
+    when hash.start_with?('{SSHA512}')
+      return 'ssha512'
     # windows
     when hash.length == 65 && hash =~ /^[\da-fA-F]{32}:[\da-fA-F]{32}$/ && hash.split(':').first.upcase == 'AAD3B435B51404EEAAD3B435B51404EE'
       return 'nt'
