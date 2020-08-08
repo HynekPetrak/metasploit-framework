@@ -50,7 +50,7 @@ class MetasploitModule < Msf::Auxiliary
       OptString.new('USER_ATTR', [false, 'LDAP attribute(s), that contains username', 'dn']),
       OptString.new('PASS_ATTR', [
         true, 'LDAP attribute, that contains password hashes',
-        'userPassword, sambantpassword, sambalmpassword, unixUserPassword, password, passwordhistory, krbprincipalkey'
+        'userPassword, sambantpassword, sambalmpassword, unixUserPassword, mailuserpassword, password, passwordhistory, clearpassword, krbprincipalkey'
         # ipanthash, krbpwdhistory, krbmkey, userpkcs12
       ])
     ])
@@ -204,6 +204,7 @@ class MetasploitModule < Msf::Auxiliary
     if hash.nil? || hash.empty? ||
        (hash.start_with?(/{crypt}/i) && hash.length < 10) ||
        hash.start_with?('*****') ||
+       hash == '*' ||
        hash.start_with?(/xxxxx/i) ||
        (pass_attr_name =~ /^samba(lm|nt)password$/ && (hash.length != 32))
       return
@@ -215,7 +216,10 @@ class MetasploitModule < Msf::Auxiliary
     when 'sambantpassword'
       hash_format = 'nt'
     else
-      if hash.start_with?(/{crypt}/i) && hash.length == 20
+      if hash.start_with?(/{crypt}!?\$1\$/i)
+        hash.gsub!(/{crypt}!?\$1\$/i, '$1$')
+        hash_format = 'md5crypt'
+      elsif hash.start_with?(/{crypt}/i) && hash.length == 20
         # handle {crypt}traditional_crypt case, i.e. explicitly set the hash format
         hash.slice!(/{crypt}/i)
         hash_format = 'descrypt' # FIXME: what is the right jtr_hash - des,crypt or descrypt ?
@@ -227,8 +231,8 @@ class MetasploitModule < Msf::Auxiliary
           hash = "$dynamic_82$#{hash}$HEX$#{salt}"
         else
           # Remove ldap {crypt} prefix from known hash types
-          hash.gsub!(/{crypt}!?\$1\$/i, '$1$')
           hash.gsub!(/{crypt}!?\$6\$/i, '$6$')
+          hash.gsub!(/{crypt}!?\$2a\$/i, '$2a$')
         end
         hash_format = identify_hash(hash)
       end

@@ -17,7 +17,7 @@ def identify_hash(hash)
   case
     # operating systems
     when hash.start_with?('$1$') && hash.length == 34
-      return 'md5crypt'
+      return 'md5'
     when hash.start_with?('$2$') && hash.length == 59,
          hash.start_with?('$2a$') && hash.length == 60,
          hash.start_with?('$2b$') && hash.length == 60,
