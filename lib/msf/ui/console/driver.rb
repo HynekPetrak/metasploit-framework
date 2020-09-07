@@ -26,7 +26,7 @@ class Driver < Msf::Ui::Driver
   ConfigGroup = "framework/ui/console"
   DbConfigGroup = "framework/database"
 
-  DefaultPrompt     = "%undmsf5%clr"
+  DefaultPrompt     = "%undmsf#{Metasploit::Framework::Version::MAJOR}%clr"
   DefaultPromptChar = "%clr>"
 
   #
@@ -131,6 +131,12 @@ class Driver < Msf::Ui::Driver
     end
 
     load_db_config(opts['Config'])
+
+    begin
+      FeatureManager.instance.load_config
+    rescue StandardException => e
+      elog(e)
+    end
 
     if !framework.db || !framework.db.active
       if framework.db.error == "disabled"
