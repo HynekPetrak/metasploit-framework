@@ -1,8 +1,4 @@
 # -*- coding: binary -*-
-require 'msf/core/post/common'
-require 'msf/core/post/file'
-require 'msf/core/post/unix'
-
 module Msf
 class Post
 module Solaris
@@ -116,19 +112,6 @@ module System
     command_exists?('gcc') || command_exists?('/usr/sfw/bin/gcc') || command_exists?('/opt/sfw/bin/gcc') || command_exists?('/opt/csw/bin/gcc')
   rescue
     raise 'Unable to check for gcc'
-  end
-
-  #
-  # Gets the process id(s) of `program`
-  # @return [Array]
-  #
-  def pidof(program)
-    pids = []
-    full = cmd_exec('ps -elf').to_s
-    full.split("\n").each do |pid|
-      pids << pid.split(' ')[3].to_i if pid.include? program
-    end
-    pids
   end
 
   #

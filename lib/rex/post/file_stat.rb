@@ -63,13 +63,13 @@ class FileStat
     self.stathash['st_blocks']
   end
   def atime
-    Time.at(self.stathash['st_atime'])
+    ::Time.at(self.stathash['st_atime'])
   end
   def mtime
-    Time.at(self.stathash['st_mtime'])
+    ::Time.at(self.stathash['st_mtime'])
   end
   def ctime
-    Time.at(self.stathash['st_ctime'])
+    ::Time.at(self.stathash['st_ctime'])
   end
 
   def update(buf)
@@ -125,10 +125,10 @@ class FileStat
     filetype?(010000) # ??? fifo?
   end
   def socket?
-    filetype(0140000)
+    filetype?(0140000)
   end
   def symlink?
-    filetype(0120000)
+    filetype?(0120000)
   end
 
   def ftype

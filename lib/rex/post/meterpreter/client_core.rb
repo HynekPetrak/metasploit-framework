@@ -5,17 +5,7 @@ require 'rex/post/meterpreter/core_ids'
 require 'rex/post/meterpreter/extension'
 require 'rex/post/meterpreter/extension_mapper'
 require 'rex/post/meterpreter/client'
-require 'msf/core/payload/transport_config'
 
-# Used to generate a reflective DLL when migrating. This is yet another
-# argument for moving the meterpreter client into the Msf namespace.
-require 'msf/core/payload/windows'
-require 'msf/core/payload/windows/migrate'
-require 'msf/core/payload/windows/x64/migrate'
-
-# URI uuid and checksum stuff
-require 'msf/core/payload/uuid'
-require 'rex/payloads/meterpreter/uri_checksum'
 
 # certificate hash checking
 require 'rex/socket/x509_certificate'
@@ -79,6 +69,8 @@ class ClientCore < Extension
     c.include(::Msf::Payload::TransportConfig)
 
     # Include the appropriate reflective dll injection module for the target process architecture...
+    # Used to generate a reflective DLL when migrating. This is yet another
+    # argument for moving the meterpreter client into the Msf namespace.
     if opts[:arch] == ARCH_X86
       c.include(::Msf::Payload::Windows::MeterpreterLoader)
     elsif opts[:arch] == ARCH_X64
@@ -99,7 +91,6 @@ class ClientCore < Extension
     stage = stager.stage_payload(stage_opts)
 
     request.add_tlv(TLV_TYPE_PIVOT_STAGE_DATA, stage)
-    request.add_tlv(TLV_TYPE_PIVOT_STAGE_DATA_SIZE, stage.length)
 
     self.client.send_request(request)
   end
@@ -107,11 +98,16 @@ class ClientCore < Extension
   #
   # Get a list of loaded commands for the given extension.
   #
-  def get_loaded_extension_commands(extension_name)
+  # @param [String, Integer] extension Either the extension name or the extension ID to load the commands for.
+  #
+  # @return [Array<Integer>] An array of command IDs that are supported by the specified extension.
+  def get_loaded_extension_commands(extension)
     request = Packet.create_request(COMMAND_ID_CORE_ENUMEXTCMD)
 
-    start = Rex::Post::Meterpreter::ExtensionMapper.get_extension_id(extension_name)
-    request.add_tlv(TLV_TYPE_UINT, start)
+    # handle 'core' as a special case since it's not a typical extension
+    extension = EXTENSION_ID_CORE if extension == 'core'
+    extension = Rex::Post::Meterpreter::ExtensionMapper.get_extension_id(extension) unless extension.is_a? Integer
+    request.add_tlv(TLV_TYPE_UINT,   extension)
     request.add_tlv(TLV_TYPE_LENGTH, COMMAND_ID_RANGE)
 
     begin
@@ -313,15 +309,17 @@ class ClientCore < Extension
 
   #
   # Loads a meterpreter extension on the remote server instance and
-  # initializes the client-side extension handlers
+  # initializes the client-side extension handlers.
   #
-  #	Module
-  #		The module that should be loaded
+  # @param [String] mod The extension that should be loaded.
+  # @param [Hash] opts The options with which to load the extension.
+  # @option opts [String] LoadFromDisk Indicates that the library should be
+  #   loaded from disk, not from memory on the remote machine.
   #
-  #	LoadFromDisk
-  #		Indicates that the library should be loaded from disk, not from
-  #		memory on the remote machine
+  # @raise [RuntimeError] An exception is raised if the extension could not be
+  #   loaded.
   #
+  # @return [true] This always returns true or raises an exception.
   def use(mod, opts = { })
     if mod.nil?
       raise RuntimeError, "No modules were specified", caller
@@ -368,16 +366,21 @@ class ClientCore < Extension
       end
 
       if path.nil? and image.nil?
-        raise RuntimeError, "No module of the name #{modnameprovided} found", caller
+        error = Rex::Post::Meterpreter::ExtensionLoadError.new(name: mod.downcase)
+        if Rex::Post::Meterpreter::ExtensionMapper.get_extension_names.include?(mod.downcase)
+          raise error, "The \"#{mod.downcase}\" extension is not supported by this Meterpreter type (#{client.session_type})", caller
+        else
+          raise error, "No module of the name #{modnameprovided} found", caller
+        end
       end
 
       # Load the extension DLL
       commands = load_library(
-          'LibraryFilePath' => path,
+          'LibraryFilePath'  => path,
           'LibraryFileImage' => image,
-          'UploadLibrary'   => true,
-          'Extension'       => true,
-          'SaveToDisk'      => opts['LoadFromDisk'])
+          'UploadLibrary'    => true,
+          'Extension'        => true,
+          'SaveToDisk'       => opts['LoadFromDisk'])
     end
 
     # wire the commands into the client
@@ -742,7 +745,7 @@ class ClientCore < Extension
   #
   # Negotiates the use of encryption at the TLV level
   #
-  def negotiate_tlv_encryption
+  def negotiate_tlv_encryption(timeout: client.comm_timeout)
     sym_key = nil
     rsa_key = OpenSSL::PKey::RSA.new(2048)
     rsa_pub_key = rsa_key.public_key
@@ -751,7 +754,7 @@ class ClientCore < Extension
     request.add_tlv(TLV_TYPE_RSA_PUB_KEY, rsa_pub_key.to_der)
 
     begin
-      response = client.send_request(request)
+      response = client.send_request(request, timeout)
       key_enc = response.get_tlv_value(TLV_TYPE_ENC_SYM_KEY)
       key_type = response.get_tlv_value(TLV_TYPE_SYM_KEY_TYPE)
 
@@ -925,6 +928,8 @@ private
     c.include( ::Msf::Payload::Stager )
 
     # Include the appropriate reflective dll injection module for the target process architecture...
+    # Used to generate a reflective DLL when migrating. This is yet another
+    # argument for moving the meterpreter client into the Msf namespace.
     if target_process['arch'] == ARCH_X86
       c.include( ::Msf::Payload::Windows::MeterpreterLoader )
     elsif target_process['arch'] == ARCH_X64

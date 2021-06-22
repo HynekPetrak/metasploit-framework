@@ -10,12 +10,6 @@ require 'rex/socket'
 # Project
 #
 require 'metasploit/framework/require'
-require 'msf/base/config'
-require 'msf/core'
-require 'msf/core/database_event'
-require 'msf/core/db_import_error'
-require 'msf/core/host_state'
-require 'msf/core/service_state'
 require 'metasploit/framework/data_service'
 
 
@@ -32,7 +26,7 @@ class Msf::DBManager
   autoload :Client, 'msf/core/db_manager/client'
   autoload :Connection, 'msf/core/db_manager/connection'
   autoload :Cred, 'msf/core/db_manager/cred'
-  autoload :DbExport, 'msf/core/db_manager/db_export'
+  autoload :DBExport, 'msf/core/db_manager/db_export'
   autoload :Event, 'msf/core/db_manager/event'
   autoload :ExploitAttempt, 'msf/core/db_manager/exploit_attempt'
   autoload :ExploitedHost, 'msf/core/db_manager/exploited_host'
@@ -72,7 +66,7 @@ class Msf::DBManager
   include Msf::DBManager::Client
   include Msf::DBManager::Connection
   include Msf::DBManager::Cred
-  include Msf::DBManager::DbExport
+  include Msf::DBManager::DBExport
   include Msf::DBManager::Event
   include Msf::DBManager::ExploitAttempt
   include Msf::DBManager::ExploitedHost
@@ -128,7 +122,6 @@ class Msf::DBManager
   #
 
   def initialize(framework, opts = {})
-
     self.framework = framework
     self.migrated  = false
     self.modules_cached  = false
@@ -182,7 +175,6 @@ class Msf::DBManager
   end
 
   def init_db(opts)
-
     init_success = false
 
     # Append any migration paths necessary to bring the database online
@@ -192,28 +184,24 @@ class Msf::DBManager
       end
     end
 
-    if connection_established?
-      after_establish_connection
+    configuration_pathname = Metasploit::Framework::Database.configurations_pathname(path: opts['DatabaseYAML'])
+
+    if configuration_pathname.nil?
+      self.error = "No database YAML file"
     else
-      configuration_pathname = Metasploit::Framework::Database.configurations_pathname(path: opts['DatabaseYAML'])
-
-      if configuration_pathname.nil?
-        self.error = "No database YAML file"
+      if configuration_pathname.readable?
+        # parse specified database YAML file
+        dbinfo = YAML.load_file(configuration_pathname) || {}
+        dbenv  = opts['DatabaseEnv'] || Rails.env
+        db_opts = dbinfo[dbenv]
       else
-        if configuration_pathname.readable?
-          # parse specified database YAML file
-          dbinfo = YAML.load_file(configuration_pathname) || {}
-          dbenv  = opts['DatabaseEnv'] || Rails.env
-          db     = dbinfo[dbenv]
-        else
-          elog("Warning, #{configuration_pathname} is not readable. Try running as root or chmod.")
-        end
+        elog("Warning, #{configuration_pathname} is not readable. Try running as root or chmod.")
+      end
 
-        if not db
-          elog("No database definition for environment #{dbenv}")
-        else
-          init_success = connect(db)
-        end
+      if db_opts
+        init_success = connect(db_opts)
+      else
+        elog("No database definition for environment #{dbenv}")
       end
     end
 

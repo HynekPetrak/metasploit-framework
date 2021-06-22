@@ -3,7 +3,6 @@
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core/auxiliary/brocade'
 
 class MetasploitModule < Msf::Auxiliary
   include Msf::Auxiliary::Brocade
@@ -19,7 +18,7 @@ class MetasploitModule < Msf::Auxiliary
           This module imports a Brocade device configuration.
         },
         'License' => MSF_LICENSE,
-        'Author' => [ 'h00die']
+        'Author' => ['h00die']
       )
     )
 

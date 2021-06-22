@@ -3,8 +3,6 @@
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core/auxiliary/cisco'
-
 class MetasploitModule < Msf::Post
   include Msf::Auxiliary::Cisco
   include Msf::Exploit::Deprecated
@@ -30,7 +28,6 @@ class MetasploitModule < Msf::Post
         OptPath.new('WORDLIST', [false, 'Wordlist of possible enable passwords to try.'])
       ]
     )
-
   end
 
   def run

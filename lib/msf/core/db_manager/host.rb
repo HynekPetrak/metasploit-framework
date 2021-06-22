@@ -127,14 +127,6 @@ module Msf::DBManager::Host
   }
   end
 
-  # Look for an address across all comms
-  def has_host?(wspace,addr)
-  ::ApplicationRecord.connection_pool.with_connection {
-    address, scope = addr.split('%', 2)
-    wspace.hosts.find_by_address(addr)
-  }
-  end
-
   # Returns a list of all hosts in the database
   def hosts(opts)
     ::ApplicationRecord.connection_pool.with_connection {
@@ -229,18 +221,6 @@ module Msf::DBManager::Host
         opts[:name] = opts[:name][0,255]
       end
 
-      if opts[:os_name]
-        os_name, os_flavor = split_windows_os_name(opts[:os_name])
-        opts[:os_name] = os_name if os_name.present?
-        if opts[:os_flavor].present?
-          if os_flavor.present? # only prepend if there is a value that needs it
-            opts[:os_flavor] = os_flavor + opts[:os_flavor]
-          end
-        else
-          opts[:os_flavor] = os_flavor
-        end
-      end
-
       opts.each do |k,v|
         if host.attribute_names.include?(k.to_s)
           unless host.attribute_locked?(k.to_s)
@@ -300,12 +280,5 @@ module Msf::DBManager::Host
       host.update!(opts)
       return host
     }
-  end
-
-  def split_windows_os_name(os_name)
-    return [] if os_name.nil?
-    flavor_match = os_name.match(/Windows\s+(.*)/)
-    return [] if flavor_match.nil?
-    ["Windows", flavor_match.captures.first]
   end
 end

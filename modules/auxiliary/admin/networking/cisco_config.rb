@@ -3,7 +3,6 @@
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core/auxiliary/cisco'
 
 class MetasploitModule < Msf::Auxiliary
   include Msf::Auxiliary::Cisco
@@ -19,7 +18,7 @@ class MetasploitModule < Msf::Auxiliary
           This module imports a Cisco IOS or NXOS device configuration.
         },
         'License' => MSF_LICENSE,
-        'Author' => [ 'h00die']
+        'Author' => ['h00die']
       )
     )
 

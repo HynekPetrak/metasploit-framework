@@ -1,5 +1,4 @@
 # -*- coding: binary -*-
-require 'msf/core'
 
 ###
 #
@@ -96,7 +95,7 @@ class Msf::Module::SiteReference < Msf::Module::Reference
     self.ctx_val = in_ctx_val
 
     if in_ctx_id == 'CVE'
-      self.site = "https://cvedetails.com/cve/CVE-#{in_ctx_val}/"
+      self.site = "https://nvd.nist.gov/vuln/detail/CVE-#{in_ctx_val}"
     elsif in_ctx_id == 'CWE'
       self.site = "https://cwe.mitre.org/data/definitions/#{in_ctx_val}.html"
     elsif in_ctx_id == 'BID'
@@ -112,7 +111,7 @@ class Msf::Module::SiteReference < Msf::Module::Reference
     elsif in_ctx_id == 'ZDI'
       self.site = "http://www.zerodayinitiative.com/advisories/ZDI-#{in_ctx_val}"
     elsif in_ctx_id == 'WPVDB'
-      self.site = "https://wpvulndb.com/vulnerabilities/#{in_ctx_val}"
+      self.site = "https://wpscan.com/vulnerability/#{in_ctx_val}"
     elsif in_ctx_id == 'PACKETSTORM'
       self.site = "https://packetstormsecurity.com/files/#{in_ctx_val}"
     elsif in_ctx_id == 'URL'

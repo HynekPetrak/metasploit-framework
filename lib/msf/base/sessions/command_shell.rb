@@ -1,10 +1,7 @@
 # -*- coding: binary -*-
-require 'msf/base'
-require 'msf/base/sessions/scriptable'
 require 'shellwords'
 require 'rex/text/table'
 require "base64"
-
 module Msf
 module Sessions
 
@@ -27,7 +24,7 @@ class CommandShell
   #
   include Msf::Session::Provider::SingleCommandShell
 
-  include Msf::Session::Scriptable
+  include Msf::Sessions::Scriptable
 
   include Rex::Ui::Text::Resource
 
@@ -89,6 +86,21 @@ class CommandShell
   #
   def shell_init
     return true
+  end
+
+  def bootstrap(datastore = {}, handler = nil)
+    session = self
+
+    if datastore['AutoVerifySession']
+      token = Rex::Text.rand_text_alphanumeric(8..24)
+      response = shell_command("echo #{token}", 3)
+      unless response&.include?(token)
+        dlog("Session #{session.sid} failed to respond to an echo command")
+        print_error("Command shell session #{session.sid} is not valid and will be closed")
+        session.kill
+        return nil
+      end
+    end
   end
 
   #
@@ -170,6 +182,7 @@ class CommandShell
     end
 
     if prompt_yesno("Background session #{name}?")
+      Rex::Ui::Text::Shell::HistoryManager.pop_context
       self.interacting = false
     end
   end
@@ -204,6 +217,7 @@ class CommandShell
       print_status("Session #{self.name} is already interactive.")
     else
       print_status("Backgrounding session #{self.name}...")
+      Rex::Ui::Text::Shell::HistoryManager.pop_context
       # store the next session id so that it can be referenced as soon
       # as this session is no longer interacting
       self.next_session = args[0]
@@ -314,19 +328,34 @@ class CommandShell
     print_error("Can not pop up an interactive shell")
   end
 
+  def self.binary_exists(binary, platform: nil, &block)
+    if block.call('command -v command').to_s.strip == 'command'
+      binary_path = block.call("command -v '#{binary}' && echo true").to_s.strip
+    else
+      binary_path = block.call("which '#{binary}' && echo true").to_s.strip
+    end
+    return nil unless binary_path.include?('true')
+
+    binary_path.split("\n")[0].strip # removes 'true' from stdout
+  end
+
   #
-  # Check if there is a binary in PATH env
+  # Returns path of a binary in PATH env.
   #
   def binary_exists(binary)
-    print_status("Trying to find binary(#{binary}) on target machine")
-    binary_path = shell_command_token("which #{binary}").to_s.strip
-    if binary_path.eql?("#{binary} not found") || binary_path == ""
-      print_error(binary_path)
-      return nil
+    print_status("Trying to find binary '#{binary}' on the target machine")
+
+    binary_path = self.class.binary_exists(binary, platform: platform) do |command|
+      shell_command_token(command)
+    end
+
+    if binary_path.nil?
+      print_error("#{binary} not found")
     else
       print_status("Found #{binary} at #{binary_path}")
-      return binary_path
     end
+
+    return binary_path
   end
 
   #
@@ -369,7 +398,7 @@ class CommandShell
 
     # Check if src exists
     if !file_exists(src)
-      print_error("The target file does not exists")
+      print_error("The target file does not exist")
       return
     end
 
@@ -532,8 +561,9 @@ class CommandShell
     if expressions.empty?
       print_status('Starting IRB shell...')
       print_status("You are in the \"self\" (session) object\n")
-
-      Rex::Ui::Text::IrbShell.new(self).run
+      Rex::Ui::Text::Shell::HistoryManager.with_context(name: :irb) do
+        Rex::Ui::Text::IrbShell.new(self).run
+      end
     else
       # XXX: No vprint_status here
       if framework.datastore['VERBOSE'].to_s == 'true'
@@ -569,8 +599,10 @@ class CommandShell
 
     print_status('Starting Pry shell...')
     print_status("You are in the \"self\" (session) object\n")
-
-    self.pry
+    Pry.config.history_load = false
+    Rex::Ui::Text::Shell::HistoryManager.with_context(history_file: Msf::Config.pry_history, name: :pry) do
+      self.pry
+    end
   end
 
   #
@@ -605,20 +637,19 @@ class CommandShell
   #
   # Explicitly run a single command, return the output.
   #
-  def shell_command(cmd)
+  def shell_command(cmd, timeout=5)
     # Send the command to the session's stdin.
     shell_write(cmd + "\n")
 
-    timeo = 5
-    etime = ::Time.now.to_f + timeo
+    etime = ::Time.now.to_f + timeout
     buff = ""
 
     # Keep reading data until no more data is available or the timeout is
     # reached.
-    while (::Time.now.to_f < etime and (self.respond_to?(:ring) or ::IO.select([rstream], nil, nil, timeo)))
+    while (::Time.now.to_f < etime and (self.respond_to?(:ring) or ::IO.select([rstream], nil, nil, timeout)))
       res = shell_read(-1, 0.01)
       buff << res if res
-      timeo = etime - ::Time.now.to_f
+      timeout = etime - ::Time.now.to_f
     end
 
     buff
@@ -738,7 +769,9 @@ protected
   # shell_write instead of operating on rstream directly.
   def _interact
     framework.events.on_session_interact(self)
-    _interact_stream
+    Rex::Ui::Text::Shell::HistoryManager.with_context(name: self.type.to_sym) {
+      _interact_stream
+    }
   end
 
   ##
@@ -758,26 +791,6 @@ protected
       end
       Thread.pass
     end
-  end
-end
-
-class CommandShellWindows < CommandShell
-  def initialize(*args)
-    self.platform = "windows"
-    super
-  end
-  def shell_command_token(cmd,timeout = 10)
-    shell_command_token_win32(cmd,timeout)
-  end
-end
-
-class CommandShellUnix < CommandShell
-  def initialize(*args)
-    self.platform = "unix"
-    super
-  end
-  def shell_command_token(cmd,timeout = 10)
-    shell_command_token_unix(cmd,timeout)
   end
 end
 

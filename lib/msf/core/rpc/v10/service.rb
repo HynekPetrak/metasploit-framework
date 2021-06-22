@@ -2,19 +2,6 @@
 require 'msgpack'
 
 require 'rex'
-require 'rex/service_manager'
-
-require 'msf/core/rpc/v10/constants'
-require 'msf/core/rpc/v10/rpc_base'
-require 'msf/core/rpc/v10/rpc_auth'
-require 'msf/core/rpc/v10/rpc_core'
-require 'msf/core/rpc/v10/rpc_console'
-require 'msf/core/rpc/v10/rpc_module'
-require 'msf/core/rpc/v10/rpc_session'
-require 'msf/core/rpc/v10/rpc_plugin'
-require 'msf/core/rpc/v10/rpc_job'
-require 'msf/core/rpc/v10/rpc_db'
-require 'msf/core/rpc/v10/rpc_job_status_tracker'
 
 module Msf
 module RPC
@@ -49,6 +36,7 @@ class Service
     self.users              = self.options[:users] || []
     self.job_status_tracker = Msf::RPC::RpcJobStatusTracker.new
 
+    add_handler("health",  Msf::RPC::RPC_Health.new(self))
     add_handler("core",    Msf::RPC::RPC_Core.new(self))
     add_handler("auth",    Msf::RPC::RPC_Auth.new(self))
     add_handler("console", Msf::RPC::RPC_Console.new(self))

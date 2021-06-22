@@ -26,7 +26,7 @@ class MetasploitModule < Msf::Auxiliary
           'bperry' #module
         ],
       'License'        => MSF_LICENSE,
-      'DisclosureDate' => 'Aug 11 2016'
+      'DisclosureDate' => '2016-08-11'
     ))
 
     register_options(
@@ -36,10 +36,6 @@ class MetasploitModule < Msf::Auxiliary
         OptString.new('PASSWORD', [false, 'The password to authenticate with', 'zabbix']),
         OptString.new('TARGETURI', [true, 'The relative URI for Zabbix', '/zabbix'])
       ])
-  end
-
-  def default_cred?
-    true
   end
 
   def check

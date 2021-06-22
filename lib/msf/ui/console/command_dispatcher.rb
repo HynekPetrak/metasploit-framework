@@ -1,5 +1,6 @@
 # -*- coding: binary -*-
-require 'msf/ui/console/command_dispatcher/common'
+
+
 module Msf
 module Ui
 module Console
@@ -75,6 +76,14 @@ module CommandDispatcher
   end
 
   #
+  # Load the configuration required for this CommandDispatcher, configuring
+  # any internal state as required.
+  #
+  def load_config(_path = nil)
+    # noop
+  end
+
+  #
   # Return the subdir of the `documentation/` directory that should be used
   # to find usage documentation
   #
@@ -133,7 +142,3 @@ module CommandDispatcher
 
 end
 end end end
-
-require 'msf/ui/console/module_command_dispatcher'
-require 'msf/ui/console/command_dispatcher/core'
-

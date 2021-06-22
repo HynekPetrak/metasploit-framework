@@ -1,4 +1,3 @@
-require 'msf/core/modules/metadata'
 require 'json'
 
 #
@@ -49,10 +48,14 @@ class Obj
   attr_reader :check
   # @return [Boolean]
   attr_reader :post_auth
+  alias :post_auth? :post_auth # Mirror the Module class
   # @return [Boolean]
   attr_reader :default_credential
+  alias :default_cred? :default_credential # Mirror the Module class
   # @return [Hash]
   attr_reader :notes
+  # @return [Array<String>]
+  attr_reader :session_types
 
   def initialize(module_instance, obj_hash = nil)
     unless obj_hash.nil?
@@ -105,8 +108,10 @@ class Obj
 
     @notes = module_instance.notes
 
+    @session_types = module_instance.respond_to?(:session_types) && module_instance.session_types
+
     # Due to potentially non-standard ASCII we force UTF-8 to ensure no problem with JSON serialization
-    force_encoding(Encoding::UTF_8)
+    force_encoding(::Encoding::UTF_8)
   end
 
   #
@@ -137,6 +142,7 @@ class Obj
       'post_auth'          => @post_auth,
       'default_credential' => @default_credential,
       'notes'              => @notes,
+      'session_types'      => @session_types,
       'needs_cleanup'      => @needs_cleanup
     }.to_json(*args)
   end
@@ -187,6 +193,7 @@ class Obj
     @default_credential = obj_hash['default_credential']
     @notes              = obj_hash['notes'].nil? ? {} : obj_hash['notes']
     @needs_cleanup      = obj_hash['needs_cleanup']
+    @session_types      = obj_hash['session_types']
 
   end
 
@@ -203,11 +210,11 @@ class Obj
   end
 
   def force_encoding(encoding)
-    @name.force_encoding(encoding)
-    @fullname.force_encoding(encoding)
-    @description.force_encoding(encoding)
-    @author.each {|a| a.force_encoding(encoding)}
-    @references.each {|r| r.force_encoding(encoding)}
+    @name = @name.dup.force_encoding(encoding)
+    @fullname = @fullname.dup.force_encoding(encoding)
+    @description = @description.dup.force_encoding(encoding)
+    @author = @author.map {|a| a.dup.force_encoding(encoding)}
+    @references = @references.map {|r| r.dup.force_encoding(encoding)}
   end
 
 end

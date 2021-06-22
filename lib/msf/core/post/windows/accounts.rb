@@ -1,6 +1,5 @@
 # -*- coding: binary -*-
 
-require 'msf/core/post/windows/error'
 
 module Msf
   class Post
@@ -46,6 +45,13 @@ module Msf
         GROUP_INFO = [
           ['grpi0_name', :LPWSTR],
         ].freeze
+
+        def initialize(info = {})
+          super(update_info(
+            info,
+            'Compat' => { 'Meterpreter' => { 'Commands' => %w{ stdapi_sys_process_* stdapi_railgun_* } } }
+          ))
+        end
 
         ##
         # get_domain(info_key, server_name = nil)

@@ -82,14 +82,14 @@ class File < Rex::Post::Meterpreter::Extensions::Stdapi::Fs::IO
     request = Packet.create_request( COMMAND_ID_STDAPI_FS_SEARCH )
 
     root = client.unicode_filter_decode(root) if root
-    root = root.chomp( self.separator ) if root
+    root = root.chomp( self.separator ) if root && !root.eql?('/')
 
     request.add_tlv( TLV_TYPE_SEARCH_ROOT, root )
     request.add_tlv( TLV_TYPE_SEARCH_GLOB, glob )
     request.add_tlv( TLV_TYPE_SEARCH_RECURSE, recurse )
 
-    # we set the response timeout to -1 to wait indefinatly as a
-    # search could take an indeterminate ammount of time to complete.
+    # we set the response timeout to -1 to wait indefinitely as a
+    # search could take an indeterminate amount of time to complete.
     response = client.send_request( request, timeout )
     if( response.result == 0 )
       response.each( TLV_TYPE_SEARCH_RESULTS ) do | results |
@@ -325,6 +325,7 @@ class File < Rex::Post::Meterpreter::Extensions::Stdapi::Fs::IO
   def File.download(dest, src_files, opts = {}, &stat)
     timestamp = opts["timestamp"]
     [*src_files].each { |src|
+      src.force_encoding('UTF-8')
       if (::File.basename(dest) != File.basename(src))
         # The destination when downloading is a local file so use this
         # system's separator

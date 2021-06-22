@@ -3,7 +3,6 @@
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'rex/proto/ipmi'
 
 class MetasploitModule < Msf::Auxiliary
   include Msf::Auxiliary::Report
@@ -48,10 +47,6 @@ class MetasploitModule < Msf::Auxiliary
   end
 
   def post_auth?
-    true
-  end
-
-  def default_cred?
     true
   end
 

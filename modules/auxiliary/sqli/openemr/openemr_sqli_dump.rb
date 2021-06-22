@@ -31,7 +31,7 @@ class MetasploitModule < Msf::Auxiliary
         ['CVE', '2018-17179'],
         ['URL', 'https://github.com/openemr/openemr/commit/3e22d11c7175c1ebbf3d862545ce6fee18f70617']
       ],
-      'DisclosureDate' => 'May 17 2019'
+      'DisclosureDate' => '2019-05-17'
     ))
 
     register_options(
@@ -68,7 +68,7 @@ class MetasploitModule < Msf::Auxiliary
     version.sub! ')', ''
     version.strip!
 
-    return Exploit::CheckCode::Safe unless Gem::Version.new(version) < Gem::Version.new('5.0.1.7')
+    return Exploit::CheckCode::Safe unless Rex::Version.new(version) < Rex::Version.new('5.0.1.7')
 
     Exploit::CheckCode::Appears
   end

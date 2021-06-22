@@ -1,8 +1,5 @@
 # -*- coding: binary -*-
 
-require 'msf/core/exploit/powershell'
-require 'msf/core/exploit/exe'
-
 module Msf::Post::Windows::Runas
 
   include Msf::Post::File
@@ -14,6 +11,13 @@ module Msf::Post::Windows::Runas
   MAX_PATH = 260
   STARTF_USESHOWWINDOW = 0x00000001
   SW_HIDE = 0
+
+  def initialize(info = {})
+    super(update_info(
+      info,
+      'Compat' => { 'Meterpreter' => { 'Commands' => %w{ stdapi_railgun_api* } } }
+    ))
+  end
 
   def shell_execute_exe(filename = nil, path = nil)
     exe_payload = generate_payload_exe

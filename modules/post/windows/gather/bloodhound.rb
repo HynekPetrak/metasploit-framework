@@ -48,7 +48,6 @@ class MetasploitModule < Msf::Post
       OptBool.new('NoSaveCache', [false, 'Dont save the cache file to disk', true]),
       OptString.new('ZipFileName', [false, 'Zip Output File Name.  Blank for random', '']),
     ])
-
   end
 
   # Options removed or changed in sharphound v2 to sharphound v3
@@ -148,7 +147,7 @@ class MetasploitModule < Msf::Post
       invoker = ''
       command = "#{command} -OutputDirectory \"#{tmp_path}\" -ZipFileName #{zip_name} #{extra_params}"
       command.gsub!('-', '--')
-      command.gsub!(/(\-\-[a-zA-Z]+ )/, &:downcase) # exe only uses downcase
+      command.gsub!(/(--[a-zA-Z]+ )/, &:downcase) # exe only uses downcase
     end
 
     print_status("Loading BloodHound with: #{command}")
